@@ -3,13 +3,13 @@ using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
 using System.Configuration;
-using System.Threading;
 using DurableFunc.Model;
+using DurableFunc.Services;
 using DurableFunc.Utils;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Azure.WebJobs.Host;
-using Newtonsoft.Json;
+
 
 namespace DurableFunc
 {
@@ -35,28 +35,8 @@ namespace DurableFunc
                     await orcestrationClientResponse.Content.ReadAsAsync<OrchestrationClientResponse>();
                 statusUri = clientResponse.StatusQueryGetUri;
                 var executionDetails = Helper.GetExecutionDetails();
-                for (int i = 0; i < executionDetails.Iterations; i++)
-                {
-                    Thread.Sleep(executionDetails.IterationPeriod);
-                    string statusCheck;
-                    try
-                    {
-                        statusCheck = await httpCleint.GetStringAsync(statusUri);
-                    }
-                    catch (Exception e)
-                    {
-                        // log the exception
-                        log.Error(e.Message);
-                        continue;
-                    }
-                    
-                    var status = JsonConvert.DeserializeObject<StatusResponse>(statusCheck);
-                    if (status.RuntimeStatus == "Completed")
-                    {
-                        result = status.Output;
-                        break;
-                    }
-                }
+                var durableFunctionSyncResponseService = new DurableFunctionSyncResponseService();
+                result = await durableFunctionSyncResponseService.ProvideOutput(clientResponse, executionDetails, log);
             }
 
             return result == null
